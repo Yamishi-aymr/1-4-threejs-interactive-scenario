@@ -114,7 +114,7 @@ scene.add(
 const timer = new THREE.Timer();
 
 // ============================================================
-// COLISIONES DEL ESCENARIO
+// OCTREE DEL ESCENARIO
 // ============================================================
 
 const worldOctree = new Octree();
@@ -129,13 +129,11 @@ const playerCollider = new Capsule(
     0.35,
     0
   ),
-
   new THREE.Vector3(
     0,
     1,
     0
   ),
-
   0.35
 );
 
@@ -168,15 +166,22 @@ const physicsWorld = new RAPIER.World(
 const physicalObjects = [];
 
 // ============================================================
-// PISO FÍSICO PARA OBJETOS RAPIER
+// LÁSERES
+// ============================================================
+
+const lasers = [];
+
+// ============================================================
+// PISO FÍSICO
 // ============================================================
 
 const groundDesc =
-  RAPIER.ColliderDesc.cuboid(
-    30,
-    0.1,
-    30
-  )
+  RAPIER.ColliderDesc
+    .cuboid(
+      30,
+      0.1,
+      30
+    )
     .setTranslation(
       0,
       -0.1,
@@ -204,28 +209,21 @@ function createDynamicBox(
   mass = 4
 ) {
 
-  // ----------------------------------------------------------
-  // MALLA THREE.JS
-  // ----------------------------------------------------------
-
-  const geometry =
-    new THREE.BoxGeometry(
-      sx,
-      sy,
-      sz
-    );
-
-  const material =
-    new THREE.MeshStandardMaterial({
-      color: 0x94a3b8,
-      roughness: 0.65,
-      metalness: 0.08
-    });
-
   const mesh =
     new THREE.Mesh(
-      geometry,
-      material
+
+      new THREE.BoxGeometry(
+        sx,
+        sy,
+        sz
+      ),
+
+      new THREE.MeshStandardMaterial({
+        color: 0x94a3b8,
+        roughness: 0.65,
+        metalness: 0.08
+      })
+
     );
 
   mesh.position.set(
@@ -241,10 +239,6 @@ function createDynamicBox(
     mesh
   );
 
-  // ----------------------------------------------------------
-  // CUERPO FÍSICO
-  // ----------------------------------------------------------
-
   const body =
     physicsWorld.createRigidBody(
 
@@ -257,10 +251,6 @@ function createDynamicBox(
         )
 
     );
-
-  // ----------------------------------------------------------
-  // COLLIDER
-  // ----------------------------------------------------------
 
   const volume =
     Math.max(
@@ -298,7 +288,7 @@ function createDynamicBox(
 }
 
 // ============================================================
-// TORRE DE CAJAS
+// TORRE
 // ============================================================
 
 for (
@@ -369,8 +359,7 @@ loader.load(
 
   (gltf) => {
 
-    const model =
-      gltf.scene;
+    const model = gltf.scene;
 
     model.traverse(
       (child) => {
@@ -380,7 +369,6 @@ loader.load(
         ) {
 
           child.castShadow = true;
-
           child.receiveShadow = true;
 
           if (
@@ -551,10 +539,9 @@ function controls(
 function playerCollisions() {
 
   const result =
-    worldOctree
-      .capsuleIntersect(
-        playerCollider
-      );
+    worldOctree.capsuleIntersect(
+      playerCollider
+    );
 
   playerOnFloor = false;
 
@@ -579,10 +566,9 @@ function playerCollisions() {
     }
 
     playerCollider.translate(
-      result.normal
-        .multiplyScalar(
-          result.depth
-        )
+      result.normal.multiplyScalar(
+        result.depth
+      )
     );
 
   }
@@ -633,7 +619,8 @@ function pushNearbyObjects() {
       );
 
     if (
-      distance < 1.15
+      distance <
+      1.15
     ) {
 
       const force =
@@ -697,15 +684,14 @@ function updatePlayer(
     damping
   );
 
-  const deltaPosition =
+  playerCollider.translate(
+
     playerVelocity
       .clone()
       .multiplyScalar(
         deltaTime
-      );
+      )
 
-  playerCollider.translate(
-    deltaPosition
   );
 
   playerCollisions();
@@ -754,6 +740,273 @@ function resetPlayer() {
   camera.position.copy(
     playerCollider.end
   );
+
+}
+
+// ============================================================
+// CREAR DISPARO LÁSER
+// ============================================================
+
+function shootLaser() {
+
+  if (
+    document.pointerLockElement !==
+    renderer.domElement
+  ) {
+
+    return;
+
+  }
+
+  const direction =
+    new THREE.Vector3();
+
+  camera.getWorldDirection(
+    direction
+  );
+
+  direction.normalize();
+
+  // ----------------------------------------------------------
+  // GEOMETRÍA DEL DISPARO
+  // ----------------------------------------------------------
+
+  const geometry =
+    new THREE.CylinderGeometry(
+      0.035,
+      0.035,
+      0.9,
+      10
+    );
+
+  geometry.rotateX(
+    Math.PI / 2
+  );
+
+  // ----------------------------------------------------------
+  // MATERIAL BRILLANTE
+  // ----------------------------------------------------------
+
+  const material =
+    new THREE.MeshStandardMaterial({
+      color: 0x67e8f9,
+      emissive: 0x22d3ee,
+      emissiveIntensity: 5
+    });
+
+  const mesh =
+    new THREE.Mesh(
+      geometry,
+      material
+    );
+
+  // Aparece ligeramente delante de la cámara.
+  mesh.position
+    .copy(
+      camera.position
+    )
+    .addScaledVector(
+      direction,
+      0.8
+    );
+
+  // Orientar el cilindro en la dirección del disparo.
+  mesh.quaternion.setFromUnitVectors(
+    new THREE.Vector3(
+      0,
+      0,
+      1
+    ),
+    direction
+  );
+
+  scene.add(
+    mesh
+  );
+
+  lasers.push({
+    mesh,
+    direction,
+    speed: 32,
+    life: 1.7
+  });
+
+}
+
+// ============================================================
+// EFECTO DE IMPACTO
+// ============================================================
+
+function createImpact(
+  position
+) {
+
+  const flash =
+    new THREE.PointLight(
+      0x67e8f9,
+      8,
+      4,
+      2
+    );
+
+  flash.position.copy(
+    position
+  );
+
+  scene.add(
+    flash
+  );
+
+  setTimeout(
+    () => {
+
+      scene.remove(
+        flash
+      );
+
+    },
+    90
+  );
+
+}
+
+// ============================================================
+// ACTUALIZAR LÁSERES
+// ============================================================
+
+function updateLasers(
+  deltaTime
+) {
+
+  const meshes =
+    physicalObjects.map(
+      (item) =>
+        item.mesh
+    );
+
+  for (
+    let i =
+      lasers.length - 1;
+
+    i >= 0;
+
+    i--
+  ) {
+
+    const laser =
+      lasers[i];
+
+    const distance =
+      laser.speed *
+      deltaTime;
+
+    // --------------------------------------------------------
+    // RAYCASTER
+    // --------------------------------------------------------
+
+    const ray =
+      new THREE.Raycaster(
+        laser.mesh.position,
+        laser.direction,
+        0,
+        distance + 0.5
+      );
+
+    const hit =
+      ray.intersectObjects(
+        meshes,
+        false
+      )[0];
+
+    // --------------------------------------------------------
+    // IMPACTO
+    // --------------------------------------------------------
+
+    if (
+      hit
+    ) {
+
+      const item =
+        physicalObjects.find(
+          (entry) =>
+            entry.mesh ===
+            hit.object
+        );
+
+      if (
+        item
+      ) {
+
+        item.body.applyImpulse(
+          {
+            x:
+              laser.direction.x *
+              9,
+
+            y:
+              laser.direction.y *
+              9 +
+              1.2,
+
+            z:
+              laser.direction.z *
+              9
+          },
+
+          true
+        );
+
+      }
+
+      createImpact(
+        hit.point
+      );
+
+      scene.remove(
+        laser.mesh
+      );
+
+      lasers.splice(
+        i,
+        1
+      );
+
+      continue;
+
+    }
+
+    // --------------------------------------------------------
+    // MOVER PROYECTIL
+    // --------------------------------------------------------
+
+    laser.mesh.position.addScaledVector(
+      laser.direction,
+      distance
+    );
+
+    laser.life -=
+      deltaTime;
+
+    // --------------------------------------------------------
+    // DESTRUIR PROYECTIL
+    // --------------------------------------------------------
+
+    if (
+      laser.life <= 0
+    ) {
+
+      scene.remove(
+        laser.mesh
+      );
+
+      lasers.splice(
+        i,
+        1
+      );
+
+    }
+
+  }
 
 }
 
@@ -873,6 +1126,25 @@ document.addEventListener(
 );
 
 // ============================================================
+// DISPARO
+// ============================================================
+
+document.addEventListener(
+  'mousedown',
+  (event) => {
+
+    if (
+      event.button === 0
+    ) {
+
+      shootLaser();
+
+    }
+
+  }
+);
+
+// ============================================================
 // CICLO DE ANIMACIÓN
 // ============================================================
 
@@ -886,7 +1158,7 @@ function animate() {
       timer.getDelta()
     );
 
-  // Movimiento del jugador.
+  // Jugador
   controls(
     delta
   );
@@ -895,13 +1167,18 @@ function animate() {
     delta
   );
 
-  // Física Rapier.
+  // Rapier
   physicsWorld.timestep =
     delta;
 
   physicsWorld.step();
 
   syncPhysics();
+
+  // Láser
+  updateLasers(
+    delta
+  );
 
   renderer.render(
     scene,
