@@ -1,720 +1,983 @@
 import * as THREE from 'three';
 
-import RAPIER from 'https://cdn.skypack.dev/@dimforge/rapier3d-compat';
+import {
+    Octree
+} from 'three/addons/math/Octree.js';
 
-await RAPIER.init();
+import {
+    Capsule
+} from 'three/addons/math/Capsule.js';
 
-// ============================================================
-// MUNDO FÍSICO
-// ============================================================
-
-const physicsWorld =
-    new RAPIER.World({
-        x: 0,
-        y: -9.81,
-        z: 0
-    });
+import {
+    physicalObjects,
+    dynamicPhysicsReady
+} from './physics.js';
 
 
 // ============================================================
-// OBJETOS DINÁMICOS
+// CONFIGURACIÓN DEL JUGADOR
 // ============================================================
 
-export const physicalObjects = [];
+const PLAYER_RADIUS = 0.35;
 
-export let dynamicPhysicsReady = false;
-
-
-// ============================================================
-// CREAR COLLIDER DEL ESCENARIO
-// ============================================================
-
-function createMergedRapierWorldCollider(
-    model
-) {
-
-    model.updateMatrixWorld(
-        true
+const PLAYER_SPAWN_START =
+    new THREE.Vector3(
+        0,
+        0.55,
+        0
     );
 
-    const vertexArrays = [];
-    const indexArrays = [];
+const PLAYER_SPAWN_END =
+    new THREE.Vector3(
+        0,
+        1.20,
+        0
+    );
 
-    let vertexOffset = 0;
 
-    let totalVertices = 0;
-    let totalIndices = 0;
+// ============================================================
+// OCTREE
+// ============================================================
+
+const worldOctree =
+    new Octree();
 
 
-    model.traverse(
-        (child) => {
+// ============================================================
+// CAPSULE
+// ============================================================
+
+const playerCollider =
+    new Capsule(
+        PLAYER_SPAWN_START.clone(),
+        PLAYER_SPAWN_END.clone(),
+        PLAYER_RADIUS
+    );
+
+
+// ============================================================
+// MOVIMIENTO
+// ============================================================
+
+const playerVelocity =
+    new THREE.Vector3();
+
+const playerDirection =
+    new THREE.Vector3();
+
+let playerOnFloor =
+    false;
+
+let worldReady =
+    false;
+
+
+// ============================================================
+// TECLADO
+// ============================================================
+
+const keyStates = {};
+
+
+// ============================================================
+// OBJETOS TEMPORALES
+// ============================================================
+
+const tempBox =
+    new THREE.Box3();
+
+const tempCenter =
+    new THREE.Vector3();
+
+const tempNormal =
+    new THREE.Vector3();
+
+const tempMove =
+    new THREE.Vector3();
+
+const tempVelocity =
+    new THREE.Vector3();
+
+const tempRecoilDirection =
+    new THREE.Vector3();
+
+
+// ============================================================
+// CONFIGURAR ESCENARIO DEL JUGADOR
+// ============================================================
+
+export function setupPlayerWorld(
+    model,
+    camera
+) {
+
+    worldOctree.fromGraphNode(
+        model
+    );
+
+    worldReady =
+        true;
+
+    resetPlayer(
+        camera
+    );
+
+    console.log(
+        '✅ Jugador colocado correctamente'
+    );
+}
+
+
+// ============================================================
+// SABER SI EL ESCENARIO ESTÁ LISTO
+// ============================================================
+
+export function isPlayerWorldReady() {
+
+    return worldReady;
+}
+
+
+// ============================================================
+// DIRECCIÓN HACIA DELANTE
+// ============================================================
+
+function getForwardVector(
+    camera
+) {
+
+    camera.getWorldDirection(
+        playerDirection
+    );
+
+    playerDirection.y =
+        0;
+
+    return playerDirection.normalize();
+}
+
+
+// ============================================================
+// DIRECCIÓN LATERAL
+// ============================================================
+
+function getSideVector(
+    camera
+) {
+
+    camera.getWorldDirection(
+        playerDirection
+    );
+
+    playerDirection.y =
+        0;
+
+    playerDirection.normalize();
+
+    playerDirection.cross(
+        camera.up
+    );
+
+    return playerDirection;
+}
+
+
+// ============================================================
+// CONTROLES DE MOVIMIENTO
+// ============================================================
+
+function controls(
+    deltaTime,
+    camera
+) {
+
+    if (
+        !worldReady
+    ) {
+
+        return;
+    }
+
+
+    const speed =
+        playerOnFloor
+            ? 18
+            : 7;
+
+
+    // ========================================================
+    // W
+    // ========================================================
+
+    if (
+        keyStates.KeyW
+    ) {
+
+        playerVelocity.add(
+            getForwardVector(
+                camera
+            )
+                .multiplyScalar(
+                    speed *
+                    deltaTime
+                )
+        );
+    }
+
+
+    // ========================================================
+    // S
+    // ========================================================
+
+    if (
+        keyStates.KeyS
+    ) {
+
+        playerVelocity.add(
+            getForwardVector(
+                camera
+            )
+                .multiplyScalar(
+                    -speed *
+                    deltaTime
+                )
+        );
+    }
+
+
+    // ========================================================
+    // A
+    // ========================================================
+
+    if (
+        keyStates.KeyA
+    ) {
+
+        playerVelocity.add(
+            getSideVector(
+                camera
+            )
+                .multiplyScalar(
+                    -speed *
+                    deltaTime
+                )
+        );
+    }
+
+
+    // ========================================================
+    // D
+    // ========================================================
+
+    if (
+        keyStates.KeyD
+    ) {
+
+        playerVelocity.add(
+            getSideVector(
+                camera
+            )
+                .multiplyScalar(
+                    speed *
+                    deltaTime
+                )
+        );
+    }
+
+
+    // ========================================================
+    // SALTO
+    // ========================================================
+
+    if (
+        playerOnFloor &&
+        keyStates.Space
+    ) {
+
+        playerVelocity.y =
+            7;
+    }
+}
+
+
+// ============================================================
+// COLISIONES CON EL ESCENARIO
+// ============================================================
+
+function playerWorldCollisions() {
+
+    const result =
+        worldOctree.capsuleIntersect(
+            playerCollider
+        );
+
+
+    playerOnFloor =
+        false;
+
+
+    if (
+        !result
+    ) {
+
+        return;
+    }
+
+
+    playerOnFloor =
+        result.normal.y >
+        0;
+
+
+    if (
+        !playerOnFloor
+    ) {
+
+        playerVelocity.addScaledVector(
+            result.normal,
+
+            -result.normal.dot(
+                playerVelocity
+            )
+        );
+    }
+
+
+    playerCollider.translate(
+        result.normal.multiplyScalar(
+            result.depth
+        )
+    );
+}
+
+
+// ============================================================
+// COLISIONES JUGADOR <-> CAJAS
+// ============================================================
+
+function resolvePlayerBoxCollisions() {
+
+    if (
+        !dynamicPhysicsReady ||
+        physicalObjects.length === 0
+    ) {
+
+        return;
+    }
+
+
+    // ========================================================
+    // CENTRO DEL JUGADOR
+    // ========================================================
+
+    tempCenter
+        .copy(
+            playerCollider.start
+        )
+        .add(
+            playerCollider.end
+        )
+        .multiplyScalar(
+            0.5
+        );
+
+
+    const playerMinY =
+        Math.min(
+            playerCollider.start.y,
+            playerCollider.end.y
+        ) -
+        PLAYER_RADIUS;
+
+
+    const playerMaxY =
+        Math.max(
+            playerCollider.start.y,
+            playerCollider.end.y
+        ) +
+        PLAYER_RADIUS;
+
+
+    // Dos pasadas ayudan cuando hay varias cajas juntas.
+    for (
+        let pass = 0;
+        pass < 2;
+        pass++
+    ) {
+
+        for (
+            const item of physicalObjects
+        ) {
+
+            tempBox.setFromObject(
+                item.mesh
+            );
+
+
+            // =================================================
+            // NO HAY CONTACTO VERTICAL
+            // =================================================
 
             if (
-                !child.isMesh ||
-                !child.geometry?.attributes?.position
+                playerMaxY <
+                tempBox.min.y ||
+                playerMinY >
+                tempBox.max.y
+            ) {
+
+                continue;
+            }
+
+
+            // =================================================
+            // PUNTO MÁS CERCANO
+            // =================================================
+
+            const closestX =
+                THREE.MathUtils.clamp(
+                    tempCenter.x,
+                    tempBox.min.x,
+                    tempBox.max.x
+                );
+
+
+            const closestZ =
+                THREE.MathUtils.clamp(
+                    tempCenter.z,
+                    tempBox.min.z,
+                    tempBox.max.z
+                );
+
+
+            const dx =
+                tempCenter.x -
+                closestX;
+
+
+            const dz =
+                tempCenter.z -
+                closestZ;
+
+
+            const distanceSquared =
+                dx * dx +
+                dz * dz;
+
+
+            const radiusSquared =
+                PLAYER_RADIUS *
+                PLAYER_RADIUS;
+
+
+            if (
+                distanceSquared >=
+                radiusSquared
+            ) {
+
+                continue;
+            }
+
+
+            let depth = 0;
+
+
+            // =================================================
+            // CONTACTO NORMAL
+            // =================================================
+
+            if (
+                distanceSquared >
+                0.00000001
+            ) {
+
+                const distance =
+                    Math.sqrt(
+                        distanceSquared
+                    );
+
+
+                tempNormal.set(
+                    dx /
+                    distance,
+
+                    0,
+
+                    dz /
+                    distance
+                );
+
+
+                depth =
+                    PLAYER_RADIUS -
+                    distance;
+            }
+
+            // =================================================
+            // JUGADOR DENTRO DE LA CAJA
+            // =================================================
+
+            else {
+
+                const left =
+                    Math.abs(
+                        tempCenter.x -
+                        tempBox.min.x
+                    );
+
+
+                const right =
+                    Math.abs(
+                        tempBox.max.x -
+                        tempCenter.x
+                    );
+
+
+                const back =
+                    Math.abs(
+                        tempCenter.z -
+                        tempBox.min.z
+                    );
+
+
+                const front =
+                    Math.abs(
+                        tempBox.max.z -
+                        tempCenter.z
+                    );
+
+
+                const minimum =
+                    Math.min(
+                        left,
+                        right,
+                        back,
+                        front
+                    );
+
+
+                if (
+                    minimum === left
+                ) {
+
+                    tempNormal.set(
+                        -1,
+                        0,
+                        0
+                    );
+
+                } else if (
+                    minimum === right
+                ) {
+
+                    tempNormal.set(
+                        1,
+                        0,
+                        0
+                    );
+
+                } else if (
+                    minimum === back
+                ) {
+
+                    tempNormal.set(
+                        0,
+                        0,
+                        -1
+                    );
+
+                } else {
+
+                    tempNormal.set(
+                        0,
+                        0,
+                        1
+                    );
+                }
+
+
+                depth =
+                    PLAYER_RADIUS +
+                    minimum;
+            }
+
+
+            // =================================================
+            // SACAR AL JUGADOR DE LA CAJA
+            // =================================================
+
+            tempMove
+                .copy(
+                    tempNormal
+                )
+                .multiplyScalar(
+                    depth +
+                    0.002
+                );
+
+
+            playerCollider.translate(
+                tempMove
+            );
+
+
+            tempCenter.add(
+                tempMove
+            );
+
+
+            // =================================================
+            // FRENAR MOVIMIENTO HACIA LA CAJA
+            // =================================================
+
+            const normalSpeed =
+                playerVelocity.dot(
+                    tempNormal
+                );
+
+
+            if (
+                normalSpeed <
+                0
+            ) {
+
+                playerVelocity.addScaledVector(
+                    tempNormal,
+                    -normalSpeed
+                );
+            }
+
+
+            // =================================================
+            // EMPUJAR CAJA
+            // =================================================
+
+            const horizontalSpeed =
+                Math.hypot(
+                    playerVelocity.x,
+                    playerVelocity.z
+                );
+
+
+            const push =
+                THREE.MathUtils.clamp(
+                    0.8 +
+                    horizontalSpeed *
+                    0.55,
+
+                    0.8,
+
+                    3.2
+                );
+
+
+            item.body.applyImpulse(
+                {
+                    x:
+                        -tempNormal.x *
+                        push,
+
+                    y:
+                        0.03,
+
+                    z:
+                        -tempNormal.z *
+                        push
+                },
+
+                true
+            );
+        }
+    }
+}
+
+
+// ============================================================
+// ACTUALIZAR JUGADOR
+// ============================================================
+
+export function updatePlayer(
+    deltaTime,
+    camera,
+    cameraRecoil = 0
+) {
+
+    // ========================================================
+    // ESPERAR A QUE CARGUE EL ESCENARIO
+    // ========================================================
+
+    if (
+        !worldReady
+    ) {
+
+        camera.position.copy(
+            PLAYER_SPAWN_END
+        );
+
+        return;
+    }
+
+
+    // ========================================================
+    // CONTROLES
+    // ========================================================
+
+    controls(
+        deltaTime,
+        camera
+    );
+
+
+    // ========================================================
+    // FRICCIÓN
+    // ========================================================
+
+    let damping =
+        Math.exp(
+            -4 *
+            deltaTime
+        ) - 1;
+
+
+    // ========================================================
+    // GRAVEDAD
+    // ========================================================
+
+    if (
+        !playerOnFloor
+    ) {
+
+        playerVelocity.y -=
+            25 *
+            deltaTime;
+
+
+        damping *=
+            0.1;
+    }
+
+
+    playerVelocity.addScaledVector(
+        playerVelocity,
+        damping
+    );
+
+
+    // ========================================================
+    // MOVIMIENTO
+    // ========================================================
+
+    tempVelocity
+        .copy(
+            playerVelocity
+        )
+        .multiplyScalar(
+            deltaTime
+        );
+
+
+    playerCollider.translate(
+        tempVelocity
+    );
+
+
+    // ========================================================
+    // COLISIONES
+    // ========================================================
+
+    playerWorldCollisions();
+
+    resolvePlayerBoxCollisions();
+
+
+    // ========================================================
+    // POSICIÓN DE LA CÁMARA
+    // ========================================================
+
+    camera.position.copy(
+        playerCollider.end
+    );
+
+
+    // ========================================================
+    // RETROCESO
+    // ========================================================
+
+    if (
+        cameraRecoil >
+        0.001
+    ) {
+
+        camera.getWorldDirection(
+            tempRecoilDirection
+        );
+
+
+        camera.position.addScaledVector(
+            tempRecoilDirection,
+            -cameraRecoil
+        );
+    }
+
+
+    // ========================================================
+    // RESET SI CAEMOS
+    // ========================================================
+
+    if (
+        camera.position.y <
+        -20
+    ) {
+
+        resetPlayer(
+            camera
+        );
+    }
+}
+
+
+// ============================================================
+// RESET DEL JUGADOR
+// ============================================================
+
+export function resetPlayer(
+    camera
+) {
+
+    playerCollider.start.copy(
+        PLAYER_SPAWN_START
+    );
+
+
+    playerCollider.end.copy(
+        PLAYER_SPAWN_END
+    );
+
+
+    playerVelocity.set(
+        0,
+        0,
+        0
+    );
+
+
+    playerOnFloor =
+        false;
+
+
+    camera.position.copy(
+        playerCollider.end
+    );
+}
+
+
+// ============================================================
+// CONFIGURAR CONTROLES
+// ============================================================
+
+export function setupPlayerControls(
+    renderer,
+    camera
+) {
+
+    // ========================================================
+    // TECLADO PRESIONADO
+    // ========================================================
+
+    document.addEventListener(
+        'keydown',
+        (event) => {
+
+            keyStates[
+                event.code
+            ] =
+                true;
+
+
+            // Evitar que SPACE mueva la página.
+            if (
+                event.code ===
+                'Space'
+            ) {
+
+                event.preventDefault();
+            }
+        }
+    );
+
+
+    // ========================================================
+    // TECLADO SOLTADO
+    // ========================================================
+
+    document.addEventListener(
+        'keyup',
+        (event) => {
+
+            keyStates[
+                event.code
+            ] =
+                false;
+        }
+    );
+
+
+    // ========================================================
+    // POINTER LOCK
+    // ========================================================
+
+    renderer.domElement.addEventListener(
+        'click',
+        () => {
+
+            if (
+                document.pointerLockElement !==
+                renderer.domElement
+            ) {
+
+                renderer.domElement
+                    .requestPointerLock();
+            }
+        }
+    );
+
+
+    // ========================================================
+    // MOVIMIENTO DEL MOUSE
+    // ========================================================
+
+    document.addEventListener(
+        'mousemove',
+        (event) => {
+
+            if (
+                document.pointerLockElement !==
+                renderer.domElement
             ) {
 
                 return;
             }
 
 
-            const geometry =
-                child.geometry.clone();
+            camera.rotation.y -=
+                event.movementX /
+                500;
 
 
-            geometry.applyMatrix4(
-                child.matrixWorld
-            );
+            camera.rotation.x -=
+                event.movementY /
+                500;
 
 
-            const position =
-                geometry.attributes.position;
+            camera.rotation.x =
+                THREE.MathUtils.clamp(
+                    camera.rotation.x,
 
+                    -Math.PI /
+                    2,
 
-            const vertices =
-                new Float32Array(
-                    position.count * 3
+                    Math.PI /
+                    2
                 );
-
-
-            for (
-                let i = 0;
-                i < position.count;
-                i++
-            ) {
-
-                vertices[i * 3] =
-                    position.getX(i);
-
-                vertices[i * 3 + 1] =
-                    position.getY(i);
-
-                vertices[i * 3 + 2] =
-                    position.getZ(i);
-            }
-
-
-            let indices;
-
-
-            if (
-                geometry.index
-            ) {
-
-                indices =
-                    new Uint32Array(
-                        geometry.index.count
-                    );
-
-
-                for (
-                    let i = 0;
-                    i < geometry.index.count;
-                    i++
-                ) {
-
-                    indices[i] =
-                        geometry.index.getX(i) +
-                        vertexOffset;
-                }
-
-            } else {
-
-                indices =
-                    new Uint32Array(
-                        position.count
-                    );
-
-
-                for (
-                    let i = 0;
-                    i < position.count;
-                    i++
-                ) {
-
-                    indices[i] =
-                        i +
-                        vertexOffset;
-                }
-            }
-
-
-            vertexArrays.push(
-                vertices
-            );
-
-            indexArrays.push(
-                indices
-            );
-
-
-            totalVertices +=
-                vertices.length;
-
-            totalIndices +=
-                indices.length;
-
-            vertexOffset +=
-                position.count;
-
-
-            geometry.dispose();
         }
     );
-
-
-    // ========================================================
-    // UNIR VÉRTICES
-    // ========================================================
-
-    const vertices =
-        new Float32Array(
-            totalVertices
-        );
-
-
-    const indices =
-        new Uint32Array(
-            totalIndices
-        );
-
-
-    let vertexPosition = 0;
-    let indexPosition = 0;
-
-
-    for (
-        const array of vertexArrays
-    ) {
-
-        vertices.set(
-            array,
-            vertexPosition
-        );
-
-        vertexPosition +=
-            array.length;
-    }
-
-
-    for (
-        const array of indexArrays
-    ) {
-
-        indices.set(
-            array,
-            indexPosition
-        );
-
-        indexPosition +=
-            array.length;
-    }
-
-
-    // ========================================================
-    // CREAR COLLIDER ÚNICO
-    // ========================================================
-
-    if (
-        indices.length >= 3
-    ) {
-
-        const collider =
-            RAPIER.ColliderDesc
-                .trimesh(
-                    vertices,
-                    indices
-                )
-                .setFriction(
-                    0.9
-                )
-                .setRestitution(
-                    0.04
-                );
-
-
-        physicsWorld.createCollider(
-            collider
-        );
-    }
-}
-
-
-// ============================================================
-// CREAR CAJA DINÁMICA
-// ============================================================
-
-function createDynamicBox(
-    scene,
-    x,
-    y,
-    z,
-    sx,
-    sy,
-    sz,
-    mass = 4,
-    color = 0xd99a32
-) {
-
-    // ========================================================
-    // OBJETO THREE.JS
-    // ========================================================
-
-    const mesh =
-        new THREE.Mesh(
-
-            new THREE.BoxGeometry(
-                sx,
-                sy,
-                sz
-            ),
-
-            new THREE.MeshStandardMaterial({
-
-                color,
-
-                roughness:
-                    0.82,
-
-                metalness:
-                    0.02
-            })
-        );
-
-
-    mesh.position.set(
-        x,
-        y,
-        z
-    );
-
-
-    mesh.castShadow =
-        true;
-
-    mesh.receiveShadow =
-        true;
-
-
-    scene.add(
-        mesh
-    );
-
-
-    // ========================================================
-    // CUERPO RÍGIDO RAPIER
-    // ========================================================
-
-    const body =
-        physicsWorld.createRigidBody(
-
-            RAPIER.RigidBodyDesc
-                .dynamic()
-
-                .setTranslation(
-                    x,
-                    y,
-                    z
-                )
-
-                .setCcdEnabled(
-                    true
-                )
-        );
-
-
-    // ========================================================
-    // DENSIDAD
-    // ========================================================
-
-    const volume =
-        Math.max(
-            sx *
-            sy *
-            sz,
-
-            0.01
-        );
-
-
-    // ========================================================
-    // COLLIDER
-    // ========================================================
-
-    const collider =
-        RAPIER.ColliderDesc
-            .cuboid(
-
-                sx / 2,
-                sy / 2,
-                sz / 2
-
-            )
-
-            .setDensity(
-                mass /
-                volume
-            )
-
-            .setFriction(
-                0.78
-            )
-
-            .setRestitution(
-                0.14
-            );
-
-
-    physicsWorld.createCollider(
-        collider,
-        body
-    );
-
-
-    // ========================================================
-    // GUARDAR OBJETO
-    // ========================================================
-
-    physicalObjects.push({
-
-        mesh,
-
-        body,
-
-        spawn: {
-            x,
-            y,
-            z
-        },
-
-        size:
-            new THREE.Vector3(
-                sx,
-                sy,
-                sz
-            )
-    });
-}
-
-
-// ============================================================
-// CREAR CAJAS DE BANANA BEACH
-// ============================================================
-
-function createPhysicalObjects(
-    scene
-) {
-
-    const colors = [
-
-        0xf4b942,
-        0xe8942f,
-        0xe8c34a,
-        0xd99130,
-        0xffd34e,
-        0xc9872b
-    ];
-
-
-    let colorIndex = 0;
-
-
-    // ========================================================
-    // TORRE DE CAJAS
-    // ========================================================
-
-    for (
-        let level = 0;
-        level < 3;
-        level++
-    ) {
-
-        for (
-            let i = 0;
-            i < 3 - level;
-            i++
-        ) {
-
-            createDynamicBox(
-
-                scene,
-
-                -2 +
-                i *
-                1.15 +
-                level *
-                0.55,
-
-                0.55 +
-                level,
-
-                -5,
-
-                1,
-                1,
-                1,
-
-                4,
-
-                colors[
-                    colorIndex %
-                    colors.length
-                ]
-            );
-
-
-            colorIndex++;
-        }
-    }
-
-
-    // ========================================================
-    // CAJA GRANDE
-    // ========================================================
-
-    createDynamicBox(
-
-        scene,
-
-        3,
-        0.8,
-        -5,
-
-        1.2,
-        1.5,
-        1.2,
-
-        8,
-
-        0x9e642c
-    );
-
-
-    // ========================================================
-    // CAJA PEQUEÑA
-    // ========================================================
-
-    createDynamicBox(
-
-        scene,
-
-        4.4,
-        0.45,
-        -5,
-
-        0.8,
-        0.8,
-        0.8,
-
-        2,
-
-        0xffcf3e
-    );
-}
-
-
-// ============================================================
-// INICIAR FÍSICA DEL ESCENARIO
-// ============================================================
-
-export function setupDynamicPhysics(
-    scene,
-    model
-) {
-
-    if (
-        dynamicPhysicsReady
-    ) {
-
-        return;
-    }
-
-
-    // ========================================================
-    // COLLIDER DEL MAPA
-    // ========================================================
-
-    createMergedRapierWorldCollider(
-        model
-    );
-
-
-    // ========================================================
-    // OBJETOS DINÁMICOS
-    // ========================================================
-
-    createPhysicalObjects(
-        scene
-    );
-
-
-    dynamicPhysicsReady =
-        true;
-
-
-    console.log(
-        '✅ Física dinámica lista'
-    );
-}
-
-
-// ============================================================
-// SINCRONIZAR RAPIER -> THREE.JS
-// ============================================================
-
-function syncPhysics() {
-
-    for (
-        const item of physicalObjects
-    ) {
-
-        const position =
-            item.body.translation();
-
-
-        const rotation =
-            item.body.rotation();
-
-
-        item.mesh.position.set(
-
-            position.x,
-            position.y,
-            position.z
-        );
-
-
-        item.mesh.quaternion.set(
-
-            rotation.x,
-            rotation.y,
-            rotation.z,
-            rotation.w
-        );
-    }
-}
-
-
-// ============================================================
-// RECUPERAR OBJETOS QUE CAIGAN
-// ============================================================
-
-function recoverFallenObjects() {
-
-    for (
-        const item of physicalObjects
-    ) {
-
-        const position =
-            item.body.translation();
-
-
-        if (
-            position.y >= -25
-        ) {
-
-            continue;
-        }
-
-
-        // ====================================================
-        // POSICIÓN
-        // ====================================================
-
-        item.body.setTranslation(
-
-            {
-                x:
-                    item.spawn.x,
-
-                y:
-                    item.spawn.y +
-                    3,
-
-                z:
-                    item.spawn.z
-            },
-
-            true
-        );
-
-
-        // ====================================================
-        // ROTACIÓN
-        // ====================================================
-
-        item.body.setRotation(
-
-            {
-                x: 0,
-                y: 0,
-                z: 0,
-                w: 1
-            },
-
-            true
-        );
-
-
-        // ====================================================
-        // VELOCIDAD
-        // ====================================================
-
-        item.body.setLinvel(
-
-            {
-                x: 0,
-                y: 0,
-                z: 0
-            },
-
-            true
-        );
-
-
-        // ====================================================
-        // ROTACIÓN / VELOCIDAD ANGULAR
-        // ====================================================
-
-        item.body.setAngvel(
-
-            {
-                x: 0,
-                y: 0,
-                z: 0
-            },
-
-            true
-        );
-    }
-}
-
-
-// ============================================================
-// ACTUALIZAR FÍSICA
-// ============================================================
-
-export function updatePhysics(
-    deltaTime
-) {
-
-    if (
-        !dynamicPhysicsReady
-    ) {
-
-        return;
-    }
-
-
-    physicsWorld.timestep =
-        deltaTime;
-
-
-    physicsWorld.step();
-
-
-    syncPhysics();
-
-
-    recoverFallenObjects();
 }
