@@ -3,6 +3,14 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { Octree } from 'three/addons/math/Octree.js';
 import { Capsule } from 'three/addons/math/Capsule.js';
 
+import RAPIER from 'https://cdn.skypack.dev/@dimforge/rapier3d-compat';
+
+// ============================================================
+// INICIALIZAR RAPIER
+// ============================================================
+
+await RAPIER.init();
+
 // ============================================================
 // CONTENEDOR
 // ============================================================
@@ -106,7 +114,7 @@ scene.add(
 const timer = new THREE.Timer();
 
 // ============================================================
-// SISTEMA DE COLISIONES DEL ESCENARIO
+// COLISIONES DEL ESCENARIO
 // ============================================================
 
 const worldOctree = new Octree();
@@ -144,6 +152,213 @@ let playerOnFloor = false;
 const keyStates = {};
 
 // ============================================================
+// RAPIER
+// ============================================================
+
+const gravity = {
+  x: 0,
+  y: -9.81,
+  z: 0
+};
+
+const physicsWorld = new RAPIER.World(
+  gravity
+);
+
+const physicalObjects = [];
+
+// ============================================================
+// PISO FÍSICO PARA OBJETOS RAPIER
+// ============================================================
+
+const groundDesc =
+  RAPIER.ColliderDesc.cuboid(
+    30,
+    0.1,
+    30
+  )
+    .setTranslation(
+      0,
+      -0.1,
+      0
+    )
+    .setFriction(
+      0.8
+    );
+
+physicsWorld.createCollider(
+  groundDesc
+);
+
+// ============================================================
+// CREAR CAJA DINÁMICA
+// ============================================================
+
+function createDynamicBox(
+  x,
+  y,
+  z,
+  sx,
+  sy,
+  sz,
+  mass = 4
+) {
+
+  // ----------------------------------------------------------
+  // MALLA THREE.JS
+  // ----------------------------------------------------------
+
+  const geometry =
+    new THREE.BoxGeometry(
+      sx,
+      sy,
+      sz
+    );
+
+  const material =
+    new THREE.MeshStandardMaterial({
+      color: 0x94a3b8,
+      roughness: 0.65,
+      metalness: 0.08
+    });
+
+  const mesh =
+    new THREE.Mesh(
+      geometry,
+      material
+    );
+
+  mesh.position.set(
+    x,
+    y,
+    z
+  );
+
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+
+  scene.add(
+    mesh
+  );
+
+  // ----------------------------------------------------------
+  // CUERPO FÍSICO
+  // ----------------------------------------------------------
+
+  const body =
+    physicsWorld.createRigidBody(
+
+      RAPIER.RigidBodyDesc
+        .dynamic()
+        .setTranslation(
+          x,
+          y,
+          z
+        )
+
+    );
+
+  // ----------------------------------------------------------
+  // COLLIDER
+  // ----------------------------------------------------------
+
+  const volume =
+    Math.max(
+      sx * sy * sz,
+      0.01
+    );
+
+  const collider =
+    RAPIER.ColliderDesc
+      .cuboid(
+        sx / 2,
+        sy / 2,
+        sz / 2
+      )
+      .setDensity(
+        mass / volume
+      )
+      .setFriction(
+        0.7
+      )
+      .setRestitution(
+        0.12
+      );
+
+  physicsWorld.createCollider(
+    collider,
+    body
+  );
+
+  physicalObjects.push({
+    mesh,
+    body
+  });
+
+}
+
+// ============================================================
+// TORRE DE CAJAS
+// ============================================================
+
+for (
+  let level = 0;
+  level < 3;
+  level++
+) {
+
+  for (
+    let i = 0;
+    i < 3 - level;
+    i++
+  ) {
+
+    createDynamicBox(
+      -2 +
+      i * 1.15 +
+      level * 0.55,
+
+      0.5 +
+      level,
+
+      -5,
+
+      1,
+      1,
+      1,
+
+      4
+    );
+
+  }
+
+}
+
+// ============================================================
+// CAJAS EXTRA
+// ============================================================
+
+createDynamicBox(
+  3,
+  0.75,
+  -5,
+  1.2,
+  1.5,
+  1.2,
+  8
+);
+
+createDynamicBox(
+  4.4,
+  0.4,
+  -5,
+  0.8,
+  0.8,
+  0.8,
+  2
+);
+
+// ============================================================
 // CARGAR ESCENARIO
 // ============================================================
 
@@ -154,31 +369,37 @@ loader.load(
 
   (gltf) => {
 
-    const model = gltf.scene;
+    const model =
+      gltf.scene;
 
-    model.traverse((child) => {
+    model.traverse(
+      (child) => {
 
-      if (child.isMesh) {
+        if (
+          child.isMesh
+        ) {
 
-        child.castShadow = true;
+          child.castShadow = true;
 
-        child.receiveShadow = true;
+          child.receiveShadow = true;
 
-        if (child.material?.map) {
+          if (
+            child.material?.map
+          ) {
 
-          child.material.map.anisotropy = 4;
+            child.material.map.anisotropy = 4;
+
+          }
 
         }
 
       }
-
-    });
+    );
 
     scene.add(
       model
     );
 
-    // Generar las colisiones a partir del escenario.
     worldOctree.fromGraphNode(
       model
     );
@@ -206,7 +427,7 @@ loader.load(
 );
 
 // ============================================================
-// DIRECCIÓN HACIA DELANTE
+// VECTOR HACIA DELANTE
 // ============================================================
 
 function getForwardVector() {
@@ -217,14 +438,12 @@ function getForwardVector() {
 
   playerDirection.y = 0;
 
-  playerDirection.normalize();
-
-  return playerDirection;
+  return playerDirection.normalize();
 
 }
 
 // ============================================================
-// DIRECCIÓN LATERAL
+// VECTOR LATERAL
 // ============================================================
 
 function getSideVector() {
@@ -249,57 +468,71 @@ function getSideVector() {
 // CONTROLES
 // ============================================================
 
-function controls(deltaTime) {
+function controls(
+  deltaTime
+) {
 
-  const speed = playerOnFloor
-    ? 18
-    : 7;
+  const speed =
+    playerOnFloor
+      ? 18
+      : 7;
 
-  // W
-  if (keyStates.KeyW) {
+  if (
+    keyStates.KeyW
+  ) {
 
     playerVelocity.add(
-      getForwardVector().multiplyScalar(
-        speed * deltaTime
-      )
+      getForwardVector()
+        .multiplyScalar(
+          speed *
+          deltaTime
+        )
     );
 
   }
 
-  // S
-  if (keyStates.KeyS) {
+  if (
+    keyStates.KeyS
+  ) {
 
     playerVelocity.add(
-      getForwardVector().multiplyScalar(
-        -speed * deltaTime
-      )
+      getForwardVector()
+        .multiplyScalar(
+          -speed *
+          deltaTime
+        )
     );
 
   }
 
-  // A
-  if (keyStates.KeyA) {
+  if (
+    keyStates.KeyA
+  ) {
 
     playerVelocity.add(
-      getSideVector().multiplyScalar(
-        -speed * deltaTime
-      )
+      getSideVector()
+        .multiplyScalar(
+          -speed *
+          deltaTime
+        )
     );
 
   }
 
-  // D
-  if (keyStates.KeyD) {
+  if (
+    keyStates.KeyD
+  ) {
 
     playerVelocity.add(
-      getSideVector().multiplyScalar(
-        speed * deltaTime
-      )
+      getSideVector()
+        .multiplyScalar(
+          speed *
+          deltaTime
+        )
     );
 
   }
 
-  // SPACE
   if (
     playerOnFloor &&
     keyStates.Space
@@ -318,18 +551,23 @@ function controls(deltaTime) {
 function playerCollisions() {
 
   const result =
-    worldOctree.capsuleIntersect(
-      playerCollider
-    );
+    worldOctree
+      .capsuleIntersect(
+        playerCollider
+      );
 
   playerOnFloor = false;
 
-  if (result) {
+  if (
+    result
+  ) {
 
     playerOnFloor =
       result.normal.y > 0;
 
-    if (!playerOnFloor) {
+    if (
+      !playerOnFloor
+    ) {
 
       playerVelocity.addScaledVector(
         result.normal,
@@ -341,10 +579,88 @@ function playerCollisions() {
     }
 
     playerCollider.translate(
-      result.normal.multiplyScalar(
-        result.depth
-      )
+      result.normal
+        .multiplyScalar(
+          result.depth
+        )
     );
+
+  }
+
+}
+
+// ============================================================
+// EMPUJAR OBJETOS CERCANOS
+// ============================================================
+
+function pushNearbyObjects() {
+
+  const moving =
+    new THREE.Vector3(
+      playerVelocity.x,
+      0,
+      playerVelocity.z
+    );
+
+  if (
+    moving.lengthSq() <
+    0.04
+  ) {
+
+    return;
+
+  }
+
+  for (
+    const item of physicalObjects
+  ) {
+
+    const position =
+      item.body.translation();
+
+    const dx =
+      position.x -
+      camera.position.x;
+
+    const dz =
+      position.z -
+      camera.position.z;
+
+    const distance =
+      Math.hypot(
+        dx,
+        dz
+      );
+
+    if (
+      distance < 1.15
+    ) {
+
+      const force =
+        0.7 /
+        Math.max(
+          distance,
+          0.25
+        );
+
+      item.body.applyImpulse(
+        {
+          x:
+            dx *
+            force,
+
+          y:
+            0.05,
+
+          z:
+            dz *
+            force
+        },
+
+        true
+      );
+
+    }
 
   }
 
@@ -354,30 +670,33 @@ function playerCollisions() {
 // ACTUALIZAR JUGADOR
 // ============================================================
 
-function updatePlayer(deltaTime) {
+function updatePlayer(
+  deltaTime
+) {
 
   let damping =
     Math.exp(
-      -4 * deltaTime
+      -4 *
+      deltaTime
     ) - 1;
 
-  // Si estamos en el aire, aplicar gravedad.
-  if (!playerOnFloor) {
+  if (
+    !playerOnFloor
+  ) {
 
     playerVelocity.y -=
-      25 * deltaTime;
+      25 *
+      deltaTime;
 
     damping *= 0.1;
 
   }
 
-  // Frenado gradual.
   playerVelocity.addScaledVector(
     playerVelocity,
     damping
   );
 
-  // Mover la cápsula.
   const deltaPosition =
     playerVelocity
       .clone()
@@ -389,17 +708,18 @@ function updatePlayer(deltaTime) {
     deltaPosition
   );
 
-  // Revisar colisiones.
   playerCollisions();
 
-  // La cámara sigue al jugador.
   camera.position.copy(
     playerCollider.end
   );
 
-  // Si caemos fuera del escenario,
-  // regresar al inicio.
-  if (camera.position.y < -20) {
+  pushNearbyObjects();
+
+  if (
+    camera.position.y <
+    -20
+  ) {
 
     resetPlayer();
 
@@ -438,6 +758,39 @@ function resetPlayer() {
 }
 
 // ============================================================
+// SINCRONIZAR THREE.JS CON RAPIER
+// ============================================================
+
+function syncPhysics() {
+
+  for (
+    const item of physicalObjects
+  ) {
+
+    const position =
+      item.body.translation();
+
+    const rotation =
+      item.body.rotation();
+
+    item.mesh.position.set(
+      position.x,
+      position.y,
+      position.z
+    );
+
+    item.mesh.quaternion.set(
+      rotation.x,
+      rotation.y,
+      rotation.z,
+      rotation.w
+    );
+
+  }
+
+}
+
+// ============================================================
 // TECLADO
 // ============================================================
 
@@ -445,7 +798,9 @@ document.addEventListener(
   'keydown',
   (event) => {
 
-    keyStates[event.code] = true;
+    keyStates[
+      event.code
+    ] = true;
 
   }
 );
@@ -454,7 +809,9 @@ document.addEventListener(
   'keyup',
   (event) => {
 
-    keyStates[event.code] = false;
+    keyStates[
+      event.code
+    ] = false;
 
   }
 );
@@ -472,7 +829,8 @@ renderer.domElement.addEventListener(
       renderer.domElement
     ) {
 
-      renderer.domElement.requestPointerLock();
+      renderer.domElement
+        .requestPointerLock();
 
     }
 
@@ -497,10 +855,12 @@ document.addEventListener(
     }
 
     camera.rotation.y -=
-      event.movementX / 500;
+      event.movementX /
+      500;
 
     camera.rotation.x -=
-      event.movementY / 500;
+      event.movementY /
+      500;
 
     camera.rotation.x =
       THREE.MathUtils.clamp(
@@ -526,6 +886,7 @@ function animate() {
       timer.getDelta()
     );
 
+  // Movimiento del jugador.
   controls(
     delta
   );
@@ -533,6 +894,14 @@ function animate() {
   updatePlayer(
     delta
   );
+
+  // Física Rapier.
+  physicsWorld.timestep =
+    delta;
+
+  physicsWorld.step();
+
+  syncPhysics();
 
   renderer.render(
     scene,
