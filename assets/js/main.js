@@ -19,6 +19,8 @@ const LASER_MAX_SPEED = 145;
 const LASER_MIN_FORCE = 18;
 const LASER_MAX_FORCE = 55;
 
+const AIM_DISTANCE = 500;
+
 // ============================================================
 // ESCENA
 // ============================================================
@@ -168,10 +170,13 @@ const lasers = [];
 // ============================================================
 
 let chargingShot = false;
+
 let chargeStartTime = 0;
 
 let cameraRecoil = 0;
+
 let weaponRecoil = 0;
+
 let weaponKick = 0;
 
 // ============================================================
@@ -190,9 +195,9 @@ bananaGun.position.copy(
   bananaBasePosition
 );
 
-// ------------------------------------------------------------
-// CUERPO CURVO DEL PLÁTANO
-// ------------------------------------------------------------
+// ============================================================
+// CUERPO DEL PLÁTANO
+// ============================================================
 
 const bananaCurve = new THREE.CatmullRomCurve3([
   new THREE.Vector3(
@@ -252,7 +257,7 @@ bananaGun.add(
 );
 
 // ============================================================
-// PUNTA TRASERA DEL PLÁTANO
+// PUNTA TRASERA
 // ============================================================
 
 const backTip = new THREE.Mesh(
@@ -262,6 +267,7 @@ const backTip = new THREE.Mesh(
     0.13,
     10
   ),
+
   new THREE.MeshStandardMaterial({
     color: 0x6b4423,
     roughness: 0.8
@@ -292,6 +298,7 @@ const frontTip = new THREE.Mesh(
     0.16,
     10
   ),
+
   new THREE.MeshStandardMaterial({
     color: 0x594126,
     roughness: 0.8
@@ -324,6 +331,7 @@ const grip = new THREE.Mesh(
     0.33,
     0.13
   ),
+
   new THREE.MeshStandardMaterial({
     color: 0x44311e,
     roughness: 0.75
@@ -355,6 +363,7 @@ const trigger = new THREE.Mesh(
     16,
     Math.PI
   ),
+
   new THREE.MeshStandardMaterial({
     color: 0x222222,
     metalness: 0.5,
@@ -376,7 +385,7 @@ bananaGun.add(
 );
 
 // ============================================================
-// PUNTO DEL CAÑÓN
+// PUNTO DE SALIDA DEL DISPARO
 // ============================================================
 
 const muzzle = new THREE.Object3D();
@@ -401,6 +410,7 @@ const chargeOrb = new THREE.Mesh(
     16,
     16
   ),
+
   new THREE.MeshStandardMaterial({
     color: 0xffff33,
     emissive: 0xffcc00,
@@ -440,7 +450,7 @@ bananaGun.add(
 );
 
 // ============================================================
-// COLOCAR ARMA EN PRIMERA PERSONA
+// COLOCAR ARMA EN CÁMARA
 // ============================================================
 
 bananaGun.rotation.set(
@@ -454,14 +464,16 @@ camera.add(
 );
 
 // ============================================================
-// COLISIONES DEL MAPA PARA RAPIER
+// CREAR COLISIONES RAPIER DEL MAPA
 // ============================================================
 
 function createRapierWorldColliders(
   model
 ) {
 
-  model.updateMatrixWorld(true);
+  model.updateMatrixWorld(
+    true
+  );
 
   let colliderCount = 0;
 
@@ -581,7 +593,7 @@ function createRapierWorldColliders(
 }
 
 // ============================================================
-// CAJAS DINÁMICAS
+// CREAR CAJA DINÁMICA
 // ============================================================
 
 function createDynamicBox(
@@ -601,6 +613,7 @@ function createDynamicBox(
       sy,
       sz
     ),
+
     new THREE.MeshStandardMaterial({
       color,
       roughness: 0.55,
@@ -623,6 +636,7 @@ function createDynamicBox(
 
   const body =
     physicsWorld.createRigidBody(
+
       RAPIER.RigidBodyDesc
         .dynamic()
         .setTranslation(
@@ -633,6 +647,7 @@ function createDynamicBox(
         .setCcdEnabled(
           true
         )
+
     );
 
   const volume =
@@ -677,7 +692,7 @@ function createDynamicBox(
 }
 
 // ============================================================
-// OBJETOS DEL ESCENARIO
+// CREAR OBJETOS
 // ============================================================
 
 function createPhysicalObjects() {
@@ -707,7 +722,9 @@ function createPhysicalObjects() {
         1,
         1,
         1,
+
         4,
+
         0x94a3b8
       );
 
@@ -797,6 +814,10 @@ loader.load(
       '🍌 Banana Bláster lista'
     );
 
+    console.log(
+      '🎯 Apuntado centrado activado'
+    );
+
   },
 
   undefined,
@@ -844,6 +865,10 @@ function getSideVector() {
   return playerDirection;
 
 }
+
+// ============================================================
+// CONTROLES
+// ============================================================
 
 function controls(
   deltaTime
@@ -1041,7 +1066,7 @@ function pushNearbyObjects() {
 }
 
 // ============================================================
-// JUGADOR
+// ACTUALIZAR JUGADOR
 // ============================================================
 
 function updatePlayer(
@@ -1086,10 +1111,7 @@ function updatePlayer(
     playerCollider.end
   );
 
-  // ----------------------------------------------------------
-  // RETROCESO VISUAL DE LA CÁMARA
-  // ----------------------------------------------------------
-
+  // Retroceso de cámara.
   if (
     cameraRecoil >
     0.001
@@ -1149,7 +1171,7 @@ function resetPlayer() {
 }
 
 // ============================================================
-// OBTENER NIVEL DE CARGA
+// CARGA
 // ============================================================
 
 function getChargeLevel() {
@@ -1177,7 +1199,7 @@ function getChargeLevel() {
 }
 
 // ============================================================
-// INICIAR CARGA
+// COMENZAR CARGA
 // ============================================================
 
 function startCharging() {
@@ -1219,6 +1241,79 @@ function cancelCharge() {
 }
 
 // ============================================================
+// OBTENER PUNTO EXACTO DE LA MIRA
+// ============================================================
+
+function getAimTarget() {
+
+  camera.updateMatrixWorld(
+    true
+  );
+
+  const cameraPosition =
+    new THREE.Vector3();
+
+  const cameraDirection =
+    new THREE.Vector3();
+
+  camera.getWorldPosition(
+    cameraPosition
+  );
+
+  camera.getWorldDirection(
+    cameraDirection
+  );
+
+  cameraDirection.normalize();
+
+  // ----------------------------------------------------------
+  // RAYCAST DESDE EL CENTRO EXACTO DE LA CÁMARA
+  // ----------------------------------------------------------
+
+  const aimRay =
+    new THREE.Raycaster(
+      cameraPosition,
+      cameraDirection,
+      0,
+      AIM_DISTANCE
+    );
+
+  // Objetos a los que podemos disparar.
+  const targets =
+    physicalObjects.map(
+      (item) =>
+        item.mesh
+    );
+
+  const hits =
+    aimRay.intersectObjects(
+      targets,
+      false
+    );
+
+  // Si la mira está encima de una caja,
+  // apuntamos exactamente al punto de impacto.
+  if (
+    hits.length > 0
+  ) {
+
+    return hits[0].point.clone();
+
+  }
+
+  // Si no hay ningún objeto en la mira,
+  // apuntamos a un punto lejano perfectamente
+  // alineado con el centro de la pantalla.
+  return cameraPosition
+    .clone()
+    .addScaledVector(
+      cameraDirection,
+      AIM_DISTANCE
+    );
+
+}
+
+// ============================================================
 // DISPARAR
 // ============================================================
 
@@ -1239,22 +1334,21 @@ function fireChargedShot() {
 
   chargeLight.intensity = 0;
 
-  // ----------------------------------------------------------
-  // DIRECCIÓN
-  // ----------------------------------------------------------
+  // ==========================================================
+  // ACTUALIZAR MATRICES
+  // ==========================================================
 
-  const direction =
-    new THREE.Vector3();
-
-  camera.getWorldDirection(
-    direction
+  camera.updateMatrixWorld(
+    true
   );
 
-  direction.normalize();
+  bananaGun.updateMatrixWorld(
+    true
+  );
 
-  // ----------------------------------------------------------
-  // POSICIÓN DEL CAÑÓN
-  // ----------------------------------------------------------
+  // ==========================================================
+  // POSICIÓN REAL DE LA PUNTA DEL PLÁTANO
+  // ==========================================================
 
   const spawnPosition =
     new THREE.Vector3();
@@ -1263,9 +1357,34 @@ function fireChargedShot() {
     spawnPosition
   );
 
-  // ----------------------------------------------------------
+  // ==========================================================
+  // PUNTO EXACTO AL QUE APUNTA LA MIRA
+  // ==========================================================
+
+  const targetPoint =
+    getAimTarget();
+
+  // ==========================================================
+  // DIRECCIÓN CORREGIDA
+  //
+  // ANTES:
+  // dirección de cámara
+  //
+  // AHORA:
+  // punta del arma -> punto de la mira
+  // ==========================================================
+
+  const direction =
+    new THREE.Vector3()
+      .subVectors(
+        targetPoint,
+        spawnPosition
+      )
+      .normalize();
+
+  // ==========================================================
   // TAMAÑO SEGÚN CARGA
-  // ----------------------------------------------------------
+  // ==========================================================
 
   const radius =
     THREE.MathUtils.lerp(
@@ -1293,9 +1412,9 @@ function fireChargedShot() {
     Math.PI / 2
   );
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // PROYECTIL AMARILLO
-  // ----------------------------------------------------------
+  // ==========================================================
 
   const material =
     new THREE.MeshStandardMaterial({
@@ -1329,9 +1448,9 @@ function fireChargedShot() {
     direction
   );
 
-  // ----------------------------------------------------------
-  // LUZ DEL PROYECTIL
-  // ----------------------------------------------------------
+  // ==========================================================
+  // LUZ DEL DISPARO
+  // ==========================================================
 
   const laserLight =
     new THREE.PointLight(
@@ -1360,6 +1479,10 @@ function fireChargedShot() {
     mesh
   );
 
+  // ==========================================================
+  // VELOCIDAD Y FUERZA
+  // ==========================================================
+
   const speed =
     THREE.MathUtils.lerp(
       LASER_MIN_SPEED,
@@ -1383,9 +1506,9 @@ function fireChargedShot() {
     life: 1.4
   });
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // RETROCESO
-  // ----------------------------------------------------------
+  // ==========================================================
 
   cameraRecoil +=
     THREE.MathUtils.lerp(
@@ -1408,7 +1531,6 @@ function fireChargedShot() {
       charge
     );
 
-  // Pequeño golpe vertical.
   camera.rotation.x +=
     THREE.MathUtils.lerp(
       0.008,
@@ -1425,10 +1547,6 @@ function fireChargedShot() {
 function updateWeapon(
   deltaTime
 ) {
-
-  // ----------------------------------------------------------
-  // CARGA
-  // ----------------------------------------------------------
 
   if (
     chargingShot
@@ -1471,7 +1589,7 @@ function updateWeapon(
         charge
       );
 
-    // Vibración cuando está muy cargada.
+    // Vibración con carga alta.
     if (
       charge >
       0.65
@@ -1499,10 +1617,7 @@ function updateWeapon(
 
   }
 
-  // ----------------------------------------------------------
-  // RECUPERACIÓN DEL RETROCESO
-  // ----------------------------------------------------------
-
+  // Recuperación de retroceso.
   cameraRecoil =
     THREE.MathUtils.lerp(
       cameraRecoil,
@@ -1604,6 +1719,7 @@ function createImpact(
 
   const impact =
     new THREE.Mesh(
+
       new THREE.SphereGeometry(
         THREE.MathUtils.lerp(
           0.1,
@@ -1617,6 +1733,7 @@ function createImpact(
       new THREE.MeshBasicMaterial({
         color: 0xffff55
       })
+
     );
 
   impact.position.copy(
@@ -1709,6 +1826,7 @@ function updateLasers(
       ) {
 
         const impulse = {
+
           x:
             laser.direction.x *
             laser.force,
@@ -1725,6 +1843,7 @@ function updateLasers(
           z:
             laser.direction.z *
             laser.force
+
         };
 
         item.body.applyImpulseAtPoint(
@@ -2022,7 +2141,7 @@ document.addEventListener(
 );
 
 // ============================================================
-// SI SE SALE DE POINTER LOCK
+// SALIR DE POINTER LOCK
 // ============================================================
 
 document.addEventListener(
