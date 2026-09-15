@@ -104,7 +104,7 @@ renderer.shadowMap.enabled =
   true;
 
 renderer.shadowMap.type =
-  THREE.PCFSoftShadowMap;
+  THREE.PCFShadowMap;
 
 renderer.outputColorSpace =
   THREE.SRGBColorSpace;
