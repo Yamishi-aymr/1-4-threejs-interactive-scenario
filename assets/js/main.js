@@ -13,11 +13,11 @@ await RAPIER.init();
 
 const MAX_CHARGE_TIME = 2;
 
-const LASER_MIN_SPEED = 90;
-const LASER_MAX_SPEED = 145;
+const BANANA_MIN_SPEED = 35;
+const BANANA_MAX_SPEED = 65;
 
-const LASER_MIN_FORCE = 18;
-const LASER_MAX_FORCE = 55;
+const BANANA_MIN_FORCE = 18;
+const BANANA_MAX_FORCE = 55;
 
 const AIM_DISTANCE = 500;
 
@@ -30,12 +30,7 @@ const container = document.getElementById('scene-container');
 const scene = new THREE.Scene();
 
 scene.background = new THREE.Color(0x07111f);
-
-scene.fog = new THREE.Fog(
-  0x07111f,
-  25,
-  90
-);
+scene.fog = new THREE.Fog(0x07111f, 25, 90);
 
 // ============================================================
 // CÁMARA
@@ -61,10 +56,7 @@ const renderer = new THREE.WebGLRenderer({
 });
 
 renderer.setPixelRatio(
-  Math.min(
-    window.devicePixelRatio,
-    2
-  )
+  Math.min(window.devicePixelRatio, 2)
 );
 
 renderer.setSize(
@@ -75,46 +67,33 @@ renderer.setSize(
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-container.appendChild(
-  renderer.domElement
-);
+container.appendChild(renderer.domElement);
 
 // ============================================================
 // LUCES
 // ============================================================
 
-scene.add(
-  new THREE.HemisphereLight(
-    0xbfe3ff,
-    0x182030,
-    1.8
-  )
+const hemisphereLight = new THREE.HemisphereLight(
+  0xbfe3ff,
+  0x182030,
+  1.8
 );
+
+scene.add(hemisphereLight);
 
 const sun = new THREE.DirectionalLight(
   0xffffff,
   3
 );
 
-sun.position.set(
-  -5,
-  18,
-  6
-);
-
+sun.position.set(-5, 18, 6);
 sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
 
-sun.shadow.mapSize.set(
-  2048,
-  2048
-);
-
-scene.add(
-  sun
-);
+scene.add(sun);
 
 // ============================================================
-// TIMER
+// TEMPORIZADOR
 // ============================================================
 
 const timer = new THREE.Timer();
@@ -130,21 +109,12 @@ const worldOctree = new Octree();
 // ============================================================
 
 const playerCollider = new Capsule(
-  new THREE.Vector3(
-    0,
-    0.35,
-    0
-  ),
-  new THREE.Vector3(
-    0,
-    1,
-    0
-  ),
+  new THREE.Vector3(0, 0.35, 0),
+  new THREE.Vector3(0, 1, 0),
   0.35
 );
 
 const playerVelocity = new THREE.Vector3();
-
 const playerDirection = new THREE.Vector3();
 
 let playerOnFloor = false;
@@ -162,7 +132,6 @@ const physicsWorld = new RAPIER.World({
 });
 
 const physicalObjects = [];
-
 const lasers = [];
 
 // ============================================================
@@ -170,13 +139,10 @@ const lasers = [];
 // ============================================================
 
 let chargingShot = false;
-
 let chargeStartTime = 0;
 
 let cameraRecoil = 0;
-
 let weaponRecoil = 0;
-
 let weaponKick = 0;
 
 // ============================================================
@@ -191,44 +157,18 @@ const bananaBasePosition = new THREE.Vector3(
   -0.72
 );
 
-bananaGun.position.copy(
-  bananaBasePosition
-);
+bananaGun.position.copy(bananaBasePosition);
 
 // ============================================================
-// CUERPO DEL PLÁTANO
+// CUERPO DE LA BANANA BLÁSTER
 // ============================================================
 
 const bananaCurve = new THREE.CatmullRomCurve3([
-  new THREE.Vector3(
-    0,
-    -0.03,
-    0.22
-  ),
-
-  new THREE.Vector3(
-    0,
-    -0.04,
-    0
-  ),
-
-  new THREE.Vector3(
-    0.02,
-    -0.02,
-    -0.25
-  ),
-
-  new THREE.Vector3(
-    0.06,
-    0.05,
-    -0.5
-  ),
-
-  new THREE.Vector3(
-    0.1,
-    0.16,
-    -0.78
-  )
+  new THREE.Vector3(0, -0.03, 0.22),
+  new THREE.Vector3(0, -0.04, 0),
+  new THREE.Vector3(0.02, -0.02, -0.25),
+  new THREE.Vector3(0.06, 0.05, -0.5),
+  new THREE.Vector3(0.1, 0.16, -0.78)
 ]);
 
 const bananaGeometry = new THREE.TubeGeometry(
@@ -252,12 +192,10 @@ const bananaMesh = new THREE.Mesh(
 
 bananaMesh.castShadow = true;
 
-bananaGun.add(
-  bananaMesh
-);
+bananaGun.add(bananaMesh);
 
 // ============================================================
-// PUNTA TRASERA
+// PUNTA TRASERA DEL ARMA
 // ============================================================
 
 const backTip = new THREE.Mesh(
@@ -267,25 +205,16 @@ const backTip = new THREE.Mesh(
     0.13,
     10
   ),
-
   new THREE.MeshStandardMaterial({
     color: 0x6b4423,
     roughness: 0.8
   })
 );
 
-backTip.rotation.x =
-  Math.PI / 2;
+backTip.rotation.x = Math.PI / 2;
+backTip.position.set(0, -0.03, 0.29);
 
-backTip.position.set(
-  0,
-  -0.03,
-  0.29
-);
-
-bananaGun.add(
-  backTip
-);
+bananaGun.add(backTip);
 
 // ============================================================
 // PUNTA DEL CAÑÓN
@@ -298,18 +227,14 @@ const frontTip = new THREE.Mesh(
     0.16,
     10
   ),
-
   new THREE.MeshStandardMaterial({
     color: 0x594126,
     roughness: 0.8
   })
 );
 
-frontTip.rotation.x =
-  Math.PI / 2;
-
-frontTip.rotation.z =
-  -0.18;
+frontTip.rotation.x = Math.PI / 2;
+frontTip.rotation.z = -0.18;
 
 frontTip.position.set(
   0.105,
@@ -317,9 +242,7 @@ frontTip.position.set(
   -0.84
 );
 
-bananaGun.add(
-  frontTip
-);
+bananaGun.add(frontTip);
 
 // ============================================================
 // EMPUÑADURA
@@ -331,7 +254,6 @@ const grip = new THREE.Mesh(
     0.33,
     0.13
   ),
-
   new THREE.MeshStandardMaterial({
     color: 0x44311e,
     roughness: 0.75
@@ -344,12 +266,9 @@ grip.position.set(
   -0.18
 );
 
-grip.rotation.x =
-  -0.18;
+grip.rotation.x = -0.18;
 
-bananaGun.add(
-  grip
-);
+bananaGun.add(grip);
 
 // ============================================================
 // GATILLO
@@ -363,7 +282,6 @@ const trigger = new THREE.Mesh(
     16,
     Math.PI
   ),
-
   new THREE.MeshStandardMaterial({
     color: 0x222222,
     metalness: 0.5,
@@ -377,15 +295,12 @@ trigger.position.set(
   -0.24
 );
 
-trigger.rotation.y =
-  Math.PI / 2;
+trigger.rotation.y = Math.PI / 2;
 
-bananaGun.add(
-  trigger
-);
+bananaGun.add(trigger);
 
 // ============================================================
-// PUNTO DE SALIDA DEL DISPARO
+// PUNTO DE SALIDA
 // ============================================================
 
 const muzzle = new THREE.Object3D();
@@ -396,9 +311,7 @@ muzzle.position.set(
   -0.96
 );
 
-bananaGun.add(
-  muzzle
-);
+bananaGun.add(muzzle);
 
 // ============================================================
 // ESFERA DE CARGA
@@ -410,7 +323,6 @@ const chargeOrb = new THREE.Mesh(
     16,
     16
   ),
-
   new THREE.MeshStandardMaterial({
     color: 0xffff33,
     emissive: 0xffcc00,
@@ -421,14 +333,9 @@ const chargeOrb = new THREE.Mesh(
 );
 
 chargeOrb.visible = false;
+chargeOrb.position.copy(muzzle.position);
 
-chargeOrb.position.copy(
-  muzzle.position
-);
-
-bananaGun.add(
-  chargeOrb
-);
+bananaGun.add(chargeOrb);
 
 // ============================================================
 // LUZ DE CARGA
@@ -441,16 +348,12 @@ const chargeLight = new THREE.PointLight(
   2
 );
 
-chargeLight.position.copy(
-  muzzle.position
-);
+chargeLight.position.copy(muzzle.position);
 
-bananaGun.add(
-  chargeLight
-);
+bananaGun.add(chargeLight);
 
 // ============================================================
-// COLOCAR ARMA EN CÁMARA
+// POSICIÓN DEL ARMA
 // ============================================================
 
 bananaGun.rotation.set(
@@ -459,21 +362,15 @@ bananaGun.rotation.set(
   0.02
 );
 
-camera.add(
-  bananaGun
-);
+camera.add(bananaGun);
 
 // ============================================================
-// CREAR COLISIONES RAPIER DEL MAPA
+// CREAR COLISIONES DEL MAPA PARA RAPIER
 // ============================================================
 
-function createRapierWorldColliders(
-  model
-) {
+function createRapierWorldColliders(model) {
 
-  model.updateMatrixWorld(
-    true
-  );
+  model.updateMatrixWorld(true);
 
   let colliderCount = 0;
 
@@ -487,8 +384,7 @@ function createRapierWorldColliders(
       return;
     }
 
-    const geometry =
-      child.geometry.clone();
+    const geometry = child.geometry.clone();
 
     geometry.applyMatrix4(
       child.matrixWorld
@@ -497,10 +393,9 @@ function createRapierWorldColliders(
     const position =
       geometry.attributes.position;
 
-    const vertices =
-      new Float32Array(
-        position.count * 3
-      );
+    const vertices = new Float32Array(
+      position.count * 3
+    );
 
     for (
       let i = 0;
@@ -508,30 +403,24 @@ function createRapierWorldColliders(
       i++
     ) {
 
-      vertices[
-        i * 3
-      ] = position.getX(i);
+      vertices[i * 3] =
+        position.getX(i);
 
-      vertices[
-        i * 3 + 1
-      ] = position.getY(i);
+      vertices[i * 3 + 1] =
+        position.getY(i);
 
-      vertices[
-        i * 3 + 2
-      ] = position.getZ(i);
+      vertices[i * 3 + 2] =
+        position.getZ(i);
 
     }
 
     let indices;
 
-    if (
-      geometry.index
-    ) {
+    if (geometry.index) {
 
-      indices =
-        new Uint32Array(
-          geometry.index.count
-        );
+      indices = new Uint32Array(
+        geometry.index.count
+      );
 
       for (
         let i = 0;
@@ -546,10 +435,9 @@ function createRapierWorldColliders(
 
     } else {
 
-      indices =
-        new Uint32Array(
-          position.count
-        );
+      indices = new Uint32Array(
+        position.count
+      );
 
       for (
         let i = 0;
@@ -569,12 +457,8 @@ function createRapierWorldColliders(
           vertices,
           indices
         )
-        .setFriction(
-          0.9
-        )
-        .setRestitution(
-          0.05
-        );
+        .setFriction(0.9)
+        .setRestitution(0.05);
 
     physicsWorld.createCollider(
       collider
@@ -613,7 +497,6 @@ function createDynamicBox(
       sy,
       sz
     ),
-
     new THREE.MeshStandardMaterial({
       color,
       roughness: 0.55,
@@ -630,13 +513,10 @@ function createDynamicBox(
   mesh.castShadow = true;
   mesh.receiveShadow = true;
 
-  scene.add(
-    mesh
-  );
+  scene.add(mesh);
 
   const body =
     physicsWorld.createRigidBody(
-
       RAPIER.RigidBodyDesc
         .dynamic()
         .setTranslation(
@@ -644,17 +524,13 @@ function createDynamicBox(
           y,
           z
         )
-        .setCcdEnabled(
-          true
-        )
-
+        .setCcdEnabled(true)
     );
 
-  const volume =
-    Math.max(
-      sx * sy * sz,
-      0.01
-    );
+  const volume = Math.max(
+    sx * sy * sz,
+    0.01
+  );
 
   const collider =
     RAPIER.ColliderDesc
@@ -666,12 +542,8 @@ function createDynamicBox(
       .setDensity(
         mass / volume
       )
-      .setFriction(
-        0.75
-      )
-      .setRestitution(
-        0.18
-      );
+      .setFriction(0.75)
+      .setRestitution(0.18);
 
   physicsWorld.createCollider(
     collider,
@@ -697,6 +569,7 @@ function createDynamicBox(
 
 function createPhysicalObjects() {
 
+  // Torre.
   for (
     let level = 0;
     level < 3;
@@ -711,11 +584,11 @@ function createPhysicalObjects() {
 
       createDynamicBox(
         -2 +
-        i * 1.15 +
-        level * 0.55,
+          i * 1.15 +
+          level * 0.55,
 
         0.55 +
-        level,
+          level,
 
         -5,
 
@@ -736,10 +609,13 @@ function createPhysicalObjects() {
     3,
     0.8,
     -5,
+
     1.2,
     1.5,
     1.2,
+
     8,
+
     0x64748b
   );
 
@@ -747,10 +623,13 @@ function createPhysicalObjects() {
     4.4,
     0.45,
     -5,
+
     0.8,
     0.8,
     0.8,
+
     2,
+
     0xcbd5e1
   );
 
@@ -760,29 +639,23 @@ function createPhysicalObjects() {
 // CARGAR ESCENARIO
 // ============================================================
 
-const loader =
-  new GLTFLoader();
+const loader = new GLTFLoader();
 
 loader.load(
   './assets/models/collision-world.glb',
 
   (gltf) => {
 
-    const model =
-      gltf.scene;
+    const model = gltf.scene;
 
     model.traverse((child) => {
 
-      if (
-        child.isMesh
-      ) {
+      if (child.isMesh) {
 
         child.castShadow = true;
         child.receiveShadow = true;
 
-        if (
-          child.material?.map
-        ) {
+        if (child.material?.map) {
 
           child.material.map.anisotropy = 4;
 
@@ -792,9 +665,7 @@ loader.load(
 
     });
 
-    scene.add(
-      model
-    );
+    scene.add(model);
 
     worldOctree.fromGraphNode(
       model
@@ -815,7 +686,7 @@ loader.load(
     );
 
     console.log(
-      '🎯 Apuntado centrado activado'
+      '🍌 Proyectiles plátano 3D activados'
     );
 
   },
@@ -866,22 +737,14 @@ function getSideVector() {
 
 }
 
-// ============================================================
-// CONTROLES
-// ============================================================
-
-function controls(
-  deltaTime
-) {
+function controls(deltaTime) {
 
   const speed =
     playerOnFloor
       ? 18
       : 7;
 
-  if (
-    keyStates.KeyW
-  ) {
+  if (keyStates.KeyW) {
 
     playerVelocity.add(
       getForwardVector()
@@ -893,9 +756,7 @@ function controls(
 
   }
 
-  if (
-    keyStates.KeyS
-  ) {
+  if (keyStates.KeyS) {
 
     playerVelocity.add(
       getForwardVector()
@@ -907,9 +768,7 @@ function controls(
 
   }
 
-  if (
-    keyStates.KeyA
-  ) {
+  if (keyStates.KeyA) {
 
     playerVelocity.add(
       getSideVector()
@@ -921,9 +780,7 @@ function controls(
 
   }
 
-  if (
-    keyStates.KeyD
-  ) {
+  if (keyStates.KeyD) {
 
     playerVelocity.add(
       getSideVector()
@@ -947,7 +804,7 @@ function controls(
 }
 
 // ============================================================
-// COLISIONES JUGADOR
+// COLISIONES DEL JUGADOR
 // ============================================================
 
 function playerCollisions() {
@@ -959,16 +816,12 @@ function playerCollisions() {
 
   playerOnFloor = false;
 
-  if (
-    result
-  ) {
+  if (result) {
 
     playerOnFloor =
       result.normal.y > 0;
 
-    if (
-      !playerOnFloor
-    ) {
+    if (!playerOnFloor) {
 
       playerVelocity.addScaledVector(
         result.normal,
@@ -1055,7 +908,6 @@ function pushNearbyObjects() {
             dz *
             force
         },
-
         true
       );
 
@@ -1079,16 +931,13 @@ function updatePlayer(
       deltaTime
     ) - 1;
 
-  if (
-    !playerOnFloor
-  ) {
+  if (!playerOnFloor) {
 
     playerVelocity.y -=
       25 *
       deltaTime;
 
-    damping *=
-      0.1;
+    damping *= 0.1;
 
   }
 
@@ -1111,7 +960,7 @@ function updatePlayer(
     playerCollider.end
   );
 
-  // Retroceso de cámara.
+  // Retroceso.
   if (
     cameraRecoil >
     0.001
@@ -1168,6 +1017,10 @@ function resetPlayer() {
     0
   );
 
+  camera.position.copy(
+    playerCollider.end
+  );
+
 }
 
 // ============================================================
@@ -1176,10 +1029,10 @@ function resetPlayer() {
 
 function getChargeLevel() {
 
-  if (
-    !chargingShot
-  ) {
+  if (!chargingShot) {
+
     return 0;
+
   }
 
   const elapsed =
@@ -1198,10 +1051,6 @@ function getChargeLevel() {
 
 }
 
-// ============================================================
-// COMENZAR CARGA
-// ============================================================
-
 function startCharging() {
 
   if (
@@ -1211,9 +1060,7 @@ function startCharging() {
     return;
   }
 
-  if (
-    chargingShot
-  ) {
+  if (chargingShot) {
     return;
   }
 
@@ -1226,10 +1073,6 @@ function startCharging() {
 
 }
 
-// ============================================================
-// CANCELAR CARGA
-// ============================================================
-
 function cancelCharge() {
 
   chargingShot = false;
@@ -1241,14 +1084,12 @@ function cancelCharge() {
 }
 
 // ============================================================
-// OBTENER PUNTO EXACTO DE LA MIRA
+// PUNTO EXACTO DE LA MIRA
 // ============================================================
 
 function getAimTarget() {
 
-  camera.updateMatrixWorld(
-    true
-  );
+  camera.updateMatrixWorld(true);
 
   const cameraPosition =
     new THREE.Vector3();
@@ -1266,10 +1107,6 @@ function getAimTarget() {
 
   cameraDirection.normalize();
 
-  // ----------------------------------------------------------
-  // RAYCAST DESDE EL CENTRO EXACTO DE LA CÁMARA
-  // ----------------------------------------------------------
-
   const aimRay =
     new THREE.Raycaster(
       cameraPosition,
@@ -1278,7 +1115,6 @@ function getAimTarget() {
       AIM_DISTANCE
     );
 
-  // Objetos a los que podemos disparar.
   const targets =
     physicalObjects.map(
       (item) =>
@@ -1291,19 +1127,17 @@ function getAimTarget() {
       false
     );
 
-  // Si la mira está encima de una caja,
-  // apuntamos exactamente al punto de impacto.
   if (
-    hits.length > 0
+    hits.length >
+    0
   ) {
 
-    return hits[0].point.clone();
+    return hits[
+      0
+    ].point.clone();
 
   }
 
-  // Si no hay ningún objeto en la mira,
-  // apuntamos a un punto lejano perfectamente
-  // alineado con el centro de la pantalla.
   return cameraPosition
     .clone()
     .addScaledVector(
@@ -1314,14 +1148,339 @@ function getAimTarget() {
 }
 
 // ============================================================
+// CREAR PLÁTANO 3D
+// ============================================================
+
+function createBananaProjectile(
+  charge
+) {
+
+  const projectile =
+    new THREE.Group();
+
+  // ==========================================================
+  // FORMA DEL PLÁTANO
+  // ==========================================================
+
+  const bananaShape =
+    new THREE.Shape();
+
+  /*
+        La parte de arriba es la curva exterior.
+
+                  _______
+              _.-'       `-._
+           .-'               `-.
+  */
+
+  bananaShape.moveTo(
+    -0.46,
+    -0.06
+  );
+
+  bananaShape.bezierCurveTo(
+    -0.33,
+    0.19,
+
+    -0.13,
+    0.31,
+
+    0.08,
+    0.29
+  );
+
+  bananaShape.bezierCurveTo(
+    0.25,
+    0.28,
+
+    0.41,
+    0.13,
+
+    0.48,
+    -0.05
+  );
+
+  /*
+        Ahora regresamos por la parte
+        interior del plátano.
+
+            ______________
+          /                \
+         /                  \
+         \       ____       /
+          `-----'    `-----'
+  */
+
+  bananaShape.bezierCurveTo(
+    0.29,
+    0.08,
+
+    0.13,
+    0.11,
+
+    -0.02,
+    0.09
+  );
+
+  bananaShape.bezierCurveTo(
+    -0.19,
+    0.08,
+
+    -0.32,
+    0.02,
+
+    -0.46,
+    -0.06
+  );
+
+  bananaShape.closePath();
+
+  // ==========================================================
+  // EXTRUSIÓN
+  // ==========================================================
+
+  const bananaGeometry =
+    new THREE.ExtrudeGeometry(
+      bananaShape,
+      {
+        depth: 0.11,
+
+        bevelEnabled: true,
+
+        bevelThickness:
+          0.025,
+
+        bevelSize:
+          0.025,
+
+        bevelSegments:
+          3,
+
+        curveSegments:
+          18,
+
+        steps:
+          1
+      }
+    );
+
+  // Centrar el grosor del plátano.
+  bananaGeometry.translate(
+    0,
+    0,
+    -0.055
+  );
+
+  const bananaMaterial =
+    new THREE.MeshStandardMaterial({
+      color:
+        0xffdf2b,
+
+      emissive:
+        0x8a5c00,
+
+      emissiveIntensity:
+        THREE.MathUtils.lerp(
+          0.15,
+          1.4,
+          charge
+        ),
+
+      roughness:
+        0.55,
+
+      metalness:
+        0.02
+    });
+
+  const banana =
+    new THREE.Mesh(
+      bananaGeometry,
+      bananaMaterial
+    );
+
+  banana.castShadow = true;
+
+  projectile.add(
+    banana
+  );
+
+  // ==========================================================
+  // TALLO CAFÉ
+  // ==========================================================
+
+  const stem =
+    new THREE.Mesh(
+      new THREE.CylinderGeometry(
+        0.045,
+        0.065,
+        0.18,
+        10
+      ),
+
+      new THREE.MeshStandardMaterial({
+        color:
+          0x5b391c,
+
+        roughness:
+          0.9
+      })
+    );
+
+  stem.position.set(
+    0.49,
+    -0.01,
+    0
+  );
+
+  stem.rotation.z =
+    -Math.PI /
+    3.1;
+
+  projectile.add(
+    stem
+  );
+
+  // ==========================================================
+  // PUNTA OSCURA DEL OTRO LADO
+  // ==========================================================
+
+  const darkTip =
+    new THREE.Mesh(
+      new THREE.SphereGeometry(
+        0.055,
+        10,
+        10
+      ),
+
+      new THREE.MeshStandardMaterial({
+        color:
+          0x4a2e17,
+
+        roughness:
+          0.9
+      })
+    );
+
+  darkTip.position.set(
+    -0.465,
+    -0.055,
+    0
+  );
+
+  projectile.add(
+    darkTip
+  );
+
+  // ==========================================================
+  // PEQUEÑA LÍNEA DEL PLÁTANO
+  // ==========================================================
+
+  const stripeCurve =
+    new THREE.CatmullRomCurve3([
+      new THREE.Vector3(
+        -0.32,
+        0.1,
+        0.065
+      ),
+
+      new THREE.Vector3(
+        -0.1,
+        0.2,
+        0.065
+      ),
+
+      new THREE.Vector3(
+        0.14,
+        0.19,
+        0.065
+      ),
+
+      new THREE.Vector3(
+        0.32,
+        0.09,
+        0.065
+      )
+    ]);
+
+  const stripeGeometry =
+    new THREE.TubeGeometry(
+      stripeCurve,
+      12,
+      0.012,
+      6,
+      false
+    );
+
+  const stripeMaterial =
+    new THREE.MeshBasicMaterial({
+      color:
+        0xe1a914
+    });
+
+  const stripe =
+    new THREE.Mesh(
+      stripeGeometry,
+      stripeMaterial
+    );
+
+  projectile.add(
+    stripe
+  );
+
+  // ==========================================================
+  // LUZ SUAVE
+  // ==========================================================
+
+  const projectileLight =
+    new THREE.PointLight(
+      0xffd633,
+
+      THREE.MathUtils.lerp(
+        0.3,
+        2.2,
+        charge
+      ),
+
+      THREE.MathUtils.lerp(
+        1,
+        4,
+        charge
+      ),
+
+      2
+    );
+
+  projectile.add(
+    projectileLight
+  );
+
+  // ==========================================================
+  // TAMAÑO
+  // ==========================================================
+
+  const scale =
+    THREE.MathUtils.lerp(
+      0.9,
+      2.3,
+      charge
+    );
+
+  projectile.scale.setScalar(
+    scale
+  );
+
+  return projectile;
+
+}
+
+// ============================================================
 // DISPARAR
 // ============================================================
 
 function fireChargedShot() {
 
-  if (
-    !chargingShot
-  ) {
+  if (!chargingShot) {
     return;
   }
 
@@ -1334,21 +1493,13 @@ function fireChargedShot() {
 
   chargeLight.intensity = 0;
 
-  // ==========================================================
-  // ACTUALIZAR MATRICES
-  // ==========================================================
+  camera.updateMatrixWorld(true);
 
-  camera.updateMatrixWorld(
-    true
-  );
+  bananaGun.updateMatrixWorld(true);
 
-  bananaGun.updateMatrixWorld(
-    true
-  );
-
-  // ==========================================================
-  // POSICIÓN REAL DE LA PUNTA DEL PLÁTANO
-  // ==========================================================
+  // ----------------------------------------------------------
+  // POSICIÓN DEL CAÑÓN
+  // ----------------------------------------------------------
 
   const spawnPosition =
     new THREE.Vector3();
@@ -1357,22 +1508,16 @@ function fireChargedShot() {
     spawnPosition
   );
 
-  // ==========================================================
-  // PUNTO EXACTO AL QUE APUNTA LA MIRA
-  // ==========================================================
+  // ----------------------------------------------------------
+  // PUNTO DE LA MIRA
+  // ----------------------------------------------------------
 
   const targetPoint =
     getAimTarget();
 
-  // ==========================================================
-  // DIRECCIÓN CORREGIDA
-  //
-  // ANTES:
-  // dirección de cámara
-  //
-  // AHORA:
-  // punta del arma -> punto de la mira
-  // ==========================================================
+  // ----------------------------------------------------------
+  // DIRECCIÓN
+  // ----------------------------------------------------------
 
   const direction =
     new THREE.Vector3()
@@ -1382,62 +1527,33 @@ function fireChargedShot() {
       )
       .normalize();
 
-  // ==========================================================
-  // TAMAÑO SEGÚN CARGA
-  // ==========================================================
-
-  const radius =
-    THREE.MathUtils.lerp(
-      0.045,
-      0.13,
-      charge
-    );
-
-  const length =
-    THREE.MathUtils.lerp(
-      1.1,
-      3,
-      charge
-    );
-
-  const geometry =
-    new THREE.CylinderGeometry(
-      radius,
-      radius,
-      length,
-      12
-    );
-
-  geometry.rotateX(
-    Math.PI / 2
-  );
-
-  // ==========================================================
-  // PROYECTIL AMARILLO
-  // ==========================================================
-
-  const material =
-    new THREE.MeshStandardMaterial({
-      color: 0xffff33,
-      emissive: 0xffcc00,
-
-      emissiveIntensity:
-        THREE.MathUtils.lerp(
-          4,
-          12,
-          charge
-        )
-    });
+  // ----------------------------------------------------------
+  // CREAR PLÁTANO
+  // ----------------------------------------------------------
 
   const mesh =
-    new THREE.Mesh(
-      geometry,
-      material
+    createBananaProjectile(
+      charge
     );
 
   mesh.position.copy(
     spawnPosition
   );
+
+  /*
+      El plátano está construido
+      sobre el plano XY.
+
+      Su eje Z apunta hacia afuera.
+
+      Alineamos ese eje Z con
+      la trayectoria.
+
+      Resultado:
+
+      Podemos ver toda la silueta 🍌
+      mientras viaja.
+  */
 
   mesh.quaternion.setFromUnitVectors(
     new THREE.Vector3(
@@ -1448,62 +1564,67 @@ function fireChargedShot() {
     direction
   );
 
-  // ==========================================================
-  // LUZ DEL DISPARO
-  // ==========================================================
-
-  const laserLight =
-    new THREE.PointLight(
-      0xffdd22,
-
-      THREE.MathUtils.lerp(
-        4,
-        15,
-        charge
-      ),
-
-      THREE.MathUtils.lerp(
-        4,
-        9,
-        charge
-      ),
-
-      2
-    );
-
-  mesh.add(
-    laserLight
+  // Ángulo inicial para que no salga completamente horizontal.
+  mesh.rotateZ(
+    -0.45
   );
 
-  scene.add(
-    mesh
-  );
+  scene.add(mesh);
 
-  // ==========================================================
-  // VELOCIDAD Y FUERZA
-  // ==========================================================
+  // ----------------------------------------------------------
+  // VELOCIDAD
+  // ----------------------------------------------------------
 
   const speed =
     THREE.MathUtils.lerp(
-      LASER_MIN_SPEED,
-      LASER_MAX_SPEED,
+      BANANA_MIN_SPEED,
+      BANANA_MAX_SPEED,
       charge
     );
+
+  // ----------------------------------------------------------
+  // FUERZA
+  // ----------------------------------------------------------
 
   const force =
     THREE.MathUtils.lerp(
-      LASER_MIN_FORCE,
-      LASER_MAX_FORCE,
+      BANANA_MIN_FORCE,
+      BANANA_MAX_FORCE,
       charge
     );
 
+  // ----------------------------------------------------------
+  // GUARDAR
+  // ----------------------------------------------------------
+
   lasers.push({
     mesh,
+
     direction,
+
     speed,
+
     force,
+
     charge,
-    life: 1.4
+
+    life: 2.6,
+
+    // Giro principal.
+    spin:
+      THREE.MathUtils.lerp(
+        3,
+        7,
+        charge
+      ),
+
+    // Bamboleo.
+    tumble:
+      THREE.MathUtils.lerp(
+        0.8,
+        2,
+        charge
+      )
   });
 
   // ==========================================================
@@ -1548,9 +1669,11 @@ function updateWeapon(
   deltaTime
 ) {
 
-  if (
-    chargingShot
-  ) {
+  // ----------------------------------------------------------
+  // CARGANDO
+  // ----------------------------------------------------------
+
+  if (chargingShot) {
 
     const charge =
       getChargeLevel();
@@ -1589,7 +1712,7 @@ function updateWeapon(
         charge
       );
 
-    // Vibración con carga alta.
+    // Vibración cuando está muy cargada.
     if (
       charge >
       0.65
@@ -1617,11 +1740,15 @@ function updateWeapon(
 
   }
 
-  // Recuperación de retroceso.
+  // ==========================================================
+  // RECUPERACIÓN DEL RETROCESO
+  // ==========================================================
+
   cameraRecoil =
     THREE.MathUtils.lerp(
       cameraRecoil,
       0,
+
       1 -
       Math.exp(
         -12 *
@@ -1633,6 +1760,7 @@ function updateWeapon(
     THREE.MathUtils.lerp(
       weaponRecoil,
       0,
+
       1 -
       Math.exp(
         -15 *
@@ -1644,6 +1772,7 @@ function updateWeapon(
     THREE.MathUtils.lerp(
       weaponKick,
       0,
+
       1 -
       Math.exp(
         -14 *
@@ -1651,9 +1780,7 @@ function updateWeapon(
       )
     );
 
-  if (
-    !chargingShot
-  ) {
+  if (!chargingShot) {
 
     bananaGun.position.x =
       THREE.MathUtils.lerp(
@@ -1695,14 +1822,14 @@ function createImpact(
       0xffff33,
 
       THREE.MathUtils.lerp(
-        12,
-        32,
+        10,
+        25,
         charge
       ),
 
       THREE.MathUtils.lerp(
-        5,
-        10,
+        4,
+        9,
         charge
       ),
 
@@ -1713,13 +1840,10 @@ function createImpact(
     position
   );
 
-  scene.add(
-    flash
-  );
+  scene.add(flash);
 
   const impact =
     new THREE.Mesh(
-
       new THREE.SphereGeometry(
         THREE.MathUtils.lerp(
           0.1,
@@ -1731,32 +1855,24 @@ function createImpact(
       ),
 
       new THREE.MeshBasicMaterial({
-        color: 0xffff55
+        color:
+          0xffff55
       })
-
     );
 
   impact.position.copy(
     position
   );
 
-  scene.add(
-    impact
-  );
+  scene.add(impact);
 
   setTimeout(
     () => {
 
-      scene.remove(
-        flash
-      );
-
-      scene.remove(
-        impact
-      );
+      scene.remove(flash);
+      scene.remove(impact);
 
       impact.geometry.dispose();
-
       impact.material.dispose();
 
     },
@@ -1767,7 +1883,55 @@ function createImpact(
 }
 
 // ============================================================
-// ACTUALIZAR PROYECTILES
+// ELIMINAR PROYECTIL
+// ============================================================
+
+function disposeProjectile(
+  projectile
+) {
+
+  projectile.traverse(
+    (child) => {
+
+      if (!child.isMesh) {
+        return;
+      }
+
+      if (child.geometry) {
+
+        child.geometry.dispose();
+
+      }
+
+      if (
+        Array.isArray(
+          child.material
+        )
+      ) {
+
+        child.material.forEach(
+          (material) => {
+
+            material.dispose();
+
+          }
+        );
+
+      } else if (
+        child.material
+      ) {
+
+        child.material.dispose();
+
+      }
+
+    }
+  );
+
+}
+
+// ============================================================
+// ACTUALIZAR PLÁTANOS
 // ============================================================
 
 function updateLasers(
@@ -1796,12 +1960,67 @@ function updateLasers(
       laser.speed *
       deltaTime;
 
+    // ========================================================
+    // GIRO DEL PLÁTANO
+    // ========================================================
+
+    /*
+        Giro sobre Z:
+
+               🍌
+               ↻
+             🍌
+            ↻
+          🍌
+
+        Como Z originalmente apunta
+        hacia la trayectoria, este giro
+        se ve prácticamente de frente.
+    */
+
+    laser.mesh.rotateZ(
+      laser.spin *
+      deltaTime
+    );
+
+    // --------------------------------------------------------
+    // BAMBoleo 3D
+    // --------------------------------------------------------
+
+    /*
+        Además gira un poco sobre X.
+
+        Esto hace que no parezca
+        simplemente un sprite plano.
+
+              🍌
+             /
+          🍌
+            \
+              🍌
+    */
+
+    laser.mesh.rotateX(
+      laser.tumble *
+      deltaTime
+    );
+
+    laser.mesh.rotateY(
+      laser.tumble *
+      0.45 *
+      deltaTime
+    );
+
+    // ========================================================
+    // RAYCAST
+    // ========================================================
+
     const ray =
       new THREE.Raycaster(
         laser.mesh.position,
         laser.direction,
         0,
-        distance + 1
+        distance + 1.5
       );
 
     const hit =
@@ -1810,9 +2029,11 @@ function updateLasers(
         false
       )[0];
 
-    if (
-      hit
-    ) {
+    // ========================================================
+    // IMPACTO
+    // ========================================================
+
+    if (hit) {
 
       const item =
         physicalObjects.find(
@@ -1821,9 +2042,7 @@ function updateLasers(
             hit.object
         );
 
-      if (
-        item
-      ) {
+      if (item) {
 
         const impulse = {
 
@@ -1874,9 +2093,9 @@ function updateLasers(
         laser.mesh
       );
 
-      laser.mesh.geometry.dispose();
-
-      laser.mesh.material.dispose();
+      disposeProjectile(
+        laser.mesh
+      );
 
       lasers.splice(
         i,
@@ -1887,25 +2106,34 @@ function updateLasers(
 
     }
 
+    // ========================================================
+    // MOVIMIENTO
+    // ========================================================
+
     laser.mesh.position.addScaledVector(
       laser.direction,
       distance
     );
 
+    // ========================================================
+    // VIDA
+    // ========================================================
+
     laser.life -=
       deltaTime;
 
     if (
-      laser.life <= 0
+      laser.life <=
+      0
     ) {
 
       scene.remove(
         laser.mesh
       );
 
-      laser.mesh.geometry.dispose();
-
-      laser.mesh.material.dispose();
+      disposeProjectile(
+        laser.mesh
+      );
 
       lasers.splice(
         i,
@@ -1948,7 +2176,6 @@ function recoverFallenObjects() {
           z:
             item.spawn.z
         },
-
         true
       );
 
@@ -1959,7 +2186,6 @@ function recoverFallenObjects() {
           z: 0,
           w: 1
         },
-
         true
       );
 
@@ -1969,7 +2195,6 @@ function recoverFallenObjects() {
           y: 0,
           z: 0
         },
-
         true
       );
 
@@ -1979,7 +2204,6 @@ function recoverFallenObjects() {
           y: 0,
           z: 0
         },
-
         true
       );
 
@@ -1990,7 +2214,7 @@ function recoverFallenObjects() {
 }
 
 // ============================================================
-// SINCRONIZAR FÍSICA
+// SINCRONIZAR RAPIER → THREE
 // ============================================================
 
 function syncPhysics() {
@@ -2103,7 +2327,7 @@ document.addEventListener(
 );
 
 // ============================================================
-// INICIAR CARGA
+// CARGAR DISPARO
 // ============================================================
 
 document.addEventListener(
@@ -2111,7 +2335,8 @@ document.addEventListener(
   (event) => {
 
     if (
-      event.button === 0
+      event.button ===
+      0
     ) {
 
       startCharging();
@@ -2122,7 +2347,7 @@ document.addEventListener(
 );
 
 // ============================================================
-// SOLTAR DISPARO
+// DISPARAR
 // ============================================================
 
 document.addEventListener(
@@ -2130,7 +2355,8 @@ document.addEventListener(
   (event) => {
 
     if (
-      event.button === 0
+      event.button ===
+      0
     ) {
 
       fireChargedShot();
@@ -2141,7 +2367,7 @@ document.addEventListener(
 );
 
 // ============================================================
-// SALIR DE POINTER LOCK
+// SALIR DEL POINTER LOCK
 // ============================================================
 
 document.addEventListener(
@@ -2174,17 +2400,11 @@ function animate() {
       timer.getDelta()
     );
 
-  controls(
-    delta
-  );
+  controls(delta);
 
-  updatePlayer(
-    delta
-  );
+  updatePlayer(delta);
 
-  updateWeapon(
-    delta
-  );
+  updateWeapon(delta);
 
   physicsWorld.timestep =
     delta;
@@ -2195,9 +2415,7 @@ function animate() {
 
   syncPhysics();
 
-  updateLasers(
-    delta
-  );
+  updateLasers(delta);
 
   renderer.render(
     scene,
